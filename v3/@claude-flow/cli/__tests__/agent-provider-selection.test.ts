@@ -13,7 +13,7 @@ describe('explicit execution provider boundaries', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'ruflo-provider-selection-'));
-    for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'OPENROUTER_API_KEY', 'OLLAMA_API_KEY', 'RUFLO_PROVIDER', 'OLLAMA_BASE_URL', 'OPENROUTER_BASE_URL']) vi.stubEnv(key, '');
+    for (const key of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'OPENROUTER_API_KEY', 'OLLAMA_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_DEFAULT_MODEL', 'RUFLO_PROVIDER', 'OLLAMA_BASE_URL', 'OPENROUTER_BASE_URL']) vi.stubEnv(key, '');
     vi.stubEnv('CLAUDE_FLOW_CWD', dir);
     fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({
       id: 'response', model: 'test-model', content: [{type: 'text', text: 'done'}],
@@ -39,6 +39,17 @@ describe('explicit execution provider boundaries', () => {
     expect(result.success).toBe(false);
     expect(result.error?.toLowerCase()).toContain(provider);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses Google Gemini through the OpenAI-compatible endpoint when explicitly selected', async () => {
+    vi.stubEnv('GOOGLE_API_KEY', 'google-test');
+    const result = await callAnthropicMessages({prompt: 'test', provider: 'google'});
+    expect(result.success).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer google-test');
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(request.model).toBe('gemini-3.8-flash');
   });
 
   it('keeps key-based inference when no provider was selected', async () => {

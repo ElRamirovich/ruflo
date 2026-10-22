@@ -88,7 +88,7 @@ const spawnCommand: Command = {
     {
       name: 'provider',
       short: 'p',
-      description: 'Provider to use (anthropic, openrouter, ollama)',
+      description: 'Provider to use (anthropic, openrouter, ollama, google)',
       type: 'string',
       default: 'anthropic'
     },

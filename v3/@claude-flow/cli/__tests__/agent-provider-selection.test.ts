@@ -52,6 +52,18 @@ describe('explicit execution provider boundaries', () => {
     expect(request.model).toBe('gemini-3.8-flash');
   });
 
+  it('honors explicitly selected Google when another provider key exists', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'anthropic-test');
+    vi.stubEnv('GOOGLE_API_KEY', 'google-test');
+
+    const result = await callAnthropicMessages({prompt: 'test', provider: 'google'});
+
+    expect(result.success).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer google-test');
+  });
+
   it('keeps key-based inference when no provider was selected', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', 'openrouter-test');
     expect((await callAnthropicMessages({prompt: 'test'})).success).toBe(true);

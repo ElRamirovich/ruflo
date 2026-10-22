@@ -22,7 +22,7 @@ const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
   { name: 'Anthropic', type: 'LLM', models: 'claude-3.5-sonnet, opus', envVar: 'ANTHROPIC_API_KEY', configName: 'anthropic' },
   { name: 'OpenAI', type: 'LLM', models: 'gpt-4o, gpt-4-turbo', envVar: 'OPENAI_API_KEY', configName: 'openai' },
   { name: 'OpenAI', type: 'Embedding', models: 'text-embedding-3-small/large', envVar: 'OPENAI_API_KEY', configName: 'openai' },
-  { name: 'Google', type: 'LLM', models: 'gemini-pro, gemini-ultra', envVar: 'GOOGLE_API_KEY', configName: 'google' },
+  { name: 'Google', type: 'LLM', models: 'gemini-3.8-flash', envVar: 'GOOGLE_API_KEY', configName: 'google' },
   // #1725: Ollama Cloud — Tier-2 default per ADR-026 (~$100/mo flat-rate alternative
   // to per-token pricing). OpenAI-compat API at https://ollama.com/v1/chat/completions.
   { name: 'Ollama', type: 'LLM', models: 'gpt-oss:120b-cloud, llama3:70b-cloud, qwen2.5-coder:32b-cloud', envVar: 'OLLAMA_API_KEY', configName: 'ollama' },

@@ -40,7 +40,7 @@ export interface AgentRecord {
    */
   modelId?: string;
   /** ADR-148 phase 2 — execution provider hint. #2962 widened to include 'ollama'. */
-  provider?: 'anthropic' | 'openrouter' | 'ollama';
+  provider?: 'anthropic' | 'openrouter' | 'ollama' | 'google';
   /** ADR-148 phase 2 — concrete OpenRouter slug when provider='openrouter'. */
   openrouterModel?: string;
   lastResult?: Record<string, unknown>;
@@ -110,7 +110,7 @@ export interface AnthropicCallInput {
    * inference callAnthropicMessages otherwise does — see the precedence
    * comment on that function.
    */
-  provider?: 'anthropic' | 'openrouter' | 'ollama';
+  provider?: 'anthropic' | 'openrouter' | 'ollama' | 'google';
 }
 
 /** A single entry from the persisted `agents.providers` config array. */
@@ -187,19 +187,39 @@ export async function callAnthropicMessages(input: AnthropicCallInput): Promise<
   // when no Anthropic key is available (same precedence as the Ollama
   // branch above).
   const openrouterKey = process.env.OPENROUTER_API_KEY;
+  const googleKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const persistedGoogle =
+    explicitProvider === 'google' || (!anthropicKey && !openrouterKey && !ollamaKey && !googleKey)
+      ? getPersistedProviderConfig('google')
+      : undefined;
   const useOpenRouter =
     explicitProvider === 'openrouter' || (!explicitProvider && !anthropicKey && !!openrouterKey);
   // #2962 — only consult the persisted config when a candidate is actually
   // relevant (explicit choice, or no env key found anywhere), so a normal
   // ANTHROPIC_API_KEY-only setup never pays a config-file read.
   const persistedOllama =
-    explicitProvider === 'ollama' || (!anthropicKey && !openrouterKey && !ollamaKey)
+    explicitProvider === 'ollama' || (!anthropicKey && !openrouterKey && !ollamaKey && !googleKey)
       ? getPersistedProviderConfig('ollama')
       : undefined;
   const persistedOpenRouter =
     explicitProvider === 'openrouter' && !openrouterKey ? getPersistedProviderConfig('openrouter') : undefined;
   const useOllama =
-    explicitProvider === 'ollama' || (!explicitProvider && !anthropicKey && !openrouterKey && (!!ollamaKey || !!persistedOllama));
+    explicitProvider === 'ollama' || (!explicitProvider && !anthropicKey && !openrouterKey && !googleKey && (!!ollamaKey || !!persistedOllama));
+  const useGoogle = explicitProvider === 'google' || (!explicitProvider && !anthropicKey && !openrouterKey && !ollamaKey && (!!googleKey || !!persistedGoogle));
+
+  if (useGoogle) {
+    const apiKey = googleKey || persistedGoogle?.apiKey;
+    if (apiKey) {
+      return callOpenAICompat({
+        ...input,
+        apiKey,
+        baseUrl: process.env.GOOGLE_BASE_URL || persistedGoogle?.baseUrl || 'https://generativelanguage.googleapis.com/v1beta/openai',
+        providerLabel: 'google',
+        defaultModel: process.env.GOOGLE_DEFAULT_MODEL || persistedGoogle?.model || 'gemini-3.8-flash',
+      });
+    }
+    return { success: false, error: 'Google Gemini was selected but no GOOGLE_API_KEY or GEMINI_API_KEY is configured.' };
+  }
 
   if (useOpenRouter) {
     const apiKey = openrouterKey || persistedOpenRouter?.apiKey;
@@ -245,7 +265,7 @@ export async function callAnthropicMessages(input: AnthropicCallInput): Promise<
     return {
       success: false,
       error:
-        'No LLM provider configured. Set ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN (Tier-3), OPENROUTER_API_KEY (#2042), or OLLAMA_API_KEY (Tier-2 — #1725).',
+        'No LLM provider configured. Set ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GOOGLE_API_KEY (Gemini), or OLLAMA_API_KEY.',
     };
   }
   const model = input.model || DEFAULT_ANTHROPIC_MODEL;
@@ -452,10 +472,14 @@ async function callOpenAICompat(
     defaultModel: string;
   },
 ): Promise<AnthropicCallResult> {
-  const model = resolveOpenAICompatModel(input.model, input.defaultModel);
+  const model = input.providerLabel === 'google'
+    ? (input.model?.startsWith('gemini-') ? input.model : input.defaultModel)
+    : resolveOpenAICompatModel(input.model, input.defaultModel);
   const startedAt = Date.now();
   const base = input.baseUrl.replace(/\/+$/, '');
-  const url = `${base}/v1/chat/completions`;
+  const url = input.providerLabel === 'google'
+    ? `${base}/chat/completions`
+    : `${base}/v1/chat/completions`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), input.timeoutMs || 60000);
   try {

@@ -43,7 +43,7 @@ interface AgentRecord {
   /** ADR-149 — concrete picked model id (e.g. inclusionai/ling-2.6-flash). */
   modelId?: string;
   /** ADR-148 — execution provider hint. #2962 widened to include 'ollama'. */
-  provider?: 'anthropic' | 'openrouter' | 'ollama';
+  provider?: 'anthropic' | 'openrouter' | 'ollama' | 'google';
   /** ADR-148 — concrete OpenRouter slug when provider='openrouter'. */
   openrouterModel?: string;
   lastResult?: Record<string, unknown>;
@@ -181,7 +181,7 @@ async function determineAgentModel(
   /** ADR-149 — concrete picked model id when the neural backend fired. */
   modelId?: string;
   /** ADR-148 — execution provider hint. #2962 widened to include 'ollama'. */
-  provider?: 'anthropic' | 'openrouter' | 'ollama';
+  provider?: 'anthropic' | 'openrouter' | 'ollama' | 'google';
   /** ADR-148 — concrete OpenRouter slug when provider='openrouter'. */
   openrouterModel?: string;
 }> {

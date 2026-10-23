@@ -351,10 +351,12 @@ export const agentTools: MCPTool[] = [
       // `agent spawn` action always sets config.provider (defaulting to
       // 'anthropic' when --provider isn't passed — commands/agent.ts), so
       // 'anthropic' here is indistinguishable from that silent default.
-      // 'ollama'/'openrouter' are never silently defaulted and are unambiguous.
+      // 'ollama'/'openrouter'/'google' are never silently defaulted and are unambiguous.
       const explicitConfigProvider =
-        config.provider === 'ollama' || config.provider === 'openrouter'
-          ? (config.provider as 'ollama' | 'openrouter')
+        config.provider === 'ollama' ||
+        config.provider === 'openrouter' ||
+        config.provider === 'google'
+          ? (config.provider as 'ollama' | 'openrouter' | 'google')
           : undefined;
 
       const agent: AgentRecord = {

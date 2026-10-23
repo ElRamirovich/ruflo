@@ -64,6 +64,28 @@ describe('explicit execution provider boundaries', () => {
     expect(headers.Authorization).toBe('Bearer google-test');
   });
 
+  it('automatically selects Google Gemini when GOOGLE_API_KEY is the only provider key', async () => {
+    vi.stubEnv('GOOGLE_API_KEY', 'google-test');
+
+    const result = await callAnthropicMessages({prompt: 'test'});
+
+    expect(result.success).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer google-test');
+  });
+
+  it('automatically selects Google Gemini when only GEMINI_API_KEY is configured', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test');
+
+    const result = await callAnthropicMessages({prompt: 'test'});
+
+    expect(result.success).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer gemini-test');
+  });
+
   it('keeps key-based inference when no provider was selected', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', 'openrouter-test');
     expect((await callAnthropicMessages({prompt: 'test'})).success).toBe(true);

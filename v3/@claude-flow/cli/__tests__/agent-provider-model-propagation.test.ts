@@ -30,6 +30,8 @@ const ENV_KEYS = [
   'OLLAMA_API_KEY',
   'OLLAMA_BASE_URL',
   'RUFLO_PROVIDER',
+  'GOOGLE_API_KEY',
+  'GEMINI_API_KEY',
 ] as const;
 
 describe('#2962 — provider/model config propagates into agent execution', () => {
@@ -178,5 +180,50 @@ describe('#2962 — provider/model config propagates into agent execution', () =
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://127.0.0.1:11434/v1/chat/completions');
+  });
+
+  it('round-trip: explicit Google provider survives agent_spawn and dispatches to Gemini', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OLLAMA_API_KEY;
+    process.env.GOOGLE_API_KEY = 'google-test-key';
+    delete process.env.GEMINI_API_KEY;
+
+    mockOpenAICompatFetch();
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'gemini-test',
+        model: 'gemini-3.8-flash',
+        choices: [{ message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }),
+    } as unknown as Response);
+
+    const spawnResult = (await tool('agent_spawn').handler({
+      agentType: 'researcher',
+      config: { provider: 'google', model: 'gemini-3.8-flash' },
+    })) as { agentId: string; provider?: string; modelId?: string };
+
+    expect(spawnResult.provider).toBe('google');
+    expect(spawnResult.modelId).toBe('gemini-3.8-flash');
+
+    const execResult = await executeAgentTask({
+      agentId: spawnResult.agentId,
+      prompt: 'say hi',
+    });
+
+    expect(execResult.success).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    );
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer google-test-key',
+    );
+    expect(JSON.parse(init.body as string).model).toBe('gemini-3.8-flash');
   });
 });

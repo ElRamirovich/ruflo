@@ -54,9 +54,13 @@ function resolveApiKey(
     google: 'GOOGLE_API_KEY',
     ollama: 'OLLAMA_API_KEY', // #1725 — Tier-2 routing
   };
-  const envVar = envMapping[providerName.toLowerCase()];
+  const normalizedProvider = providerName.toLowerCase();
+  const envVar = envMapping[normalizedProvider];
   if (envVar && process.env[envVar]) {
     return process.env[envVar];
+  }
+  if (normalizedProvider === 'google' && process.env.GEMINI_API_KEY) {
+    return process.env.GEMINI_API_KEY;
   }
 
   return undefined;

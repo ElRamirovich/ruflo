@@ -42,6 +42,25 @@ git clone /workspaces/ruflo-recuperado-ID/.backup-history.bundle /workspaces/ruf
 
 ## Exclusões e limites
 
+### Diagnosticar um bloqueio do histórico
+
+```bash
+python3 independent-backup/backup.py audit-history --limit 20
+```
+
+Esse comando somente lê os objetos Git e imprime hashes, caminhos e categorias,
+sem valores encontrados nem conteúdo dos arquivos. O código de saída 2 indica
+achados, histórico raso ou auditoria incompleta; 0 indica varredura completa sem
+achados. O limite evita relatórios grandes; `complete: false` nunca significa
+histórico aprovado. A auditoria não altera commits nem libera exceções por pasta.
+
+Um marcador de chave privada isolado dentro de uma string de código não é uma
+chave. O detector diferencia esse caso de PEM com quebra de linha real ou escapada;
+PEM completo ou truncado continua bloqueado, inclusive dentro de testes. Tokens
+de outros formatos e credenciais em nomes sensíveis continuam sujeitos à auditoria.
+
+### Itens que não entram automaticamente
+
 - Credenciais conhecidas por nome, `.env` reais, chaves privadas e conteúdo com
   padrões de segredos são excluídos e registrados com motivo, sem imprimir valores.
   Modelos `.env.example`/`.env.template` passam pela mesma inspeção de conteúdo.
@@ -78,6 +97,22 @@ git clone /workspaces/ruflo-recuperado-ID/.backup-history.bundle /workspaces/ruf
   Agendamento, retenção automática e cópias externas não estão habilitados.
 
 ## Testes isolados
+
+### Verificar a preparação do agente sem chamar uma API
+
+```bash
+python3 independent-backup/agent-check.py
+```
+
+O diagnóstico somente lê arquivos e conta processos candidatos. Mostra presença
+de suporte Google no código e no build, configuração/chave presentes (sem valores),
+contagens de registros de agentes e versão do Node. Não carrega `.env`, inicia
+agentes, escreve estado, instala dependências ou envia requisições de inferência.
+`live_agent_confirmed: false` é intencional: configuração, processos e registros
+não comprovam uma execução real. A disponibilidade do modelo e o plano de cobrança
+não são verificados. Um teste real com API exige confirmar antes que não terá custo.
+
+### Executar testes do backup e diagnóstico
 
 ```bash
 python3 -m unittest discover -s independent-backup -p 'test_*.py' -v

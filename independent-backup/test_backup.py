@@ -56,7 +56,7 @@ class BackupTests(unittest.TestCase):
     def test_sensitive_sqlite_links_ignored_and_deleted(self):
         (self.root / '.env').write_text('PRIVATE=never-copy')
         (self.root / 'data.bin').write_bytes(b'SQLite format 3\0stuff')
-        (self.root / 'secret.txt').write_bytes(b'-----BEGIN PRIVATE KEY-----')
+        (self.root / 'secret.txt').write_bytes(b'-----BEGIN ' + b'PRIVATE KEY-----' + b'\n' + b'A' * 64)
         (self.root / 'link').symlink_to(self.root / 'code.txt')
         (self.root / '.gitignore').write_text('ignored.txt\n')
         (self.root / 'ignored.txt').write_text('private')
@@ -233,6 +233,49 @@ class BackupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'destination collision'):
             backup.restore(a, self.base / 'restored', self.root)
         self.assertFalse((self.base / 'restored').exists())
+
+
+    def test_marker_literal_is_not_a_private_key(self):
+        marker = b'-----BEGIN ' + b'PRIVATE KEY-----'
+        self.assertFalse(backup.sensitive(b"x = b'" + marker + b"'\n"))
+        self.assertTrue(backup.sensitive(marker + b'\n' + b'A' * 64))
+        self.assertTrue(backup.sensitive(marker + b'\\n' + b'A' * 64))
+        self.assertTrue(backup.sensitive(json.dumps((marker + b'\r\n' + b'A' * 64).decode()).encode()))
+        self.assertTrue(backup.sensitive(b'-----BEGIN EC ' + b'PRIVATE KEY-----\n' + b'A' * 64))
+
+    def test_audit_names_and_reasons_never_secret_values(self):
+        secret = 'ghp_' + 'a' * 36
+        (self.root / 'secret.txt').write_text(secret)
+        self.git('add', 'secret.txt')
+        self.git('-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'fixture')
+        report = backup.audit_history(self.root)
+        output = json.dumps(report)
+        self.assertNotIn(secret, output)
+        finding = next(x for x in report['findings'] if x['path'] == 'secret.txt')
+        self.assertIn('github-token', finding['reasons'])
+        self.assertEqual(len(finding['object']), 40)
+        self.assertTrue(report['complete'])
+        with self.assertRaisesRegex(ValueError, 'object='):
+            backup.create(self.root, self.out)
+
+    def test_audit_limit_and_clean_history(self):
+        report = backup.audit_history(self.root)
+        self.assertTrue(report['complete'])
+        self.assertEqual(report['findings'], [])
+        for i in range(2):
+            (self.root / ('secret' + str(i))).write_text('ghp_' + str(i) * 36)
+        self.git('add', '.')
+        self.git('-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'fixtures')
+        limited = backup.audit_history(self.root, limit=1)
+        self.assertEqual(len(limited['findings']), 1)
+        self.assertFalse(limited['complete'])
+
+    def test_source_with_marker_can_be_backed_up_with_history(self):
+        marker = '-----BEGIN ' + 'PRIVATE KEY-----'
+        (self.root / 'fixture.py').write_text('example = ' + repr(marker) + '\n')
+        self.git('add', 'fixture.py')
+        self.git('-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'literal marker')
+        self.assertTrue(backup.verify(backup.create(self.root, self.out))['history'])
 
 
 if __name__ == '__main__':

@@ -20,11 +20,16 @@ SECRET_NAMES = {'oauth-client.json', 'oauth-token.json', 'credentials.json',
 SUFFIXES = ('.pem', '.key', '.p12', '.pfx', '.db', '.sqlite', '.sqlite3',
             '-wal', '-shm', '-journal', '.pyc', '.log', '.tmp', '.tsbuildinfo',
             '.zip', '.tar', '.gz', '.7z', '.bundle')
-SECRET = re.compile(rb'-----BEGIN (?:[A-Z ]*PRIVATE KEY)-----|'
-                    rb'AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{30,}|'
-                    rb'github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|'
-                    rb'ya29\.[A-Za-z0-9_-]{20,}|'
-                    rb'"(?:refresh_token|client_secret)"\s*:\s*"[^"\s]{12,}"')
+SECRET_PATTERNS = (
+    # A quoted, isolated marker in source is not a private key. Real PEM data,
+    # including JSON-escaped PEM and truncated bodies, still blocks the backup.
+    ('private-key', re.compile(rb'-----BEGIN [A-Z ]*PRIVATE KEY-----(?:\r?\n|\\r\\n|\\n)')),
+    ('google-api-key', re.compile(rb'AIza[0-9A-Za-z_-]{35}')),
+    ('github-token', re.compile(rb'gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}')),
+    ('aws-access-id', re.compile(rb'AKIA[0-9A-Z]{16}')),
+    ('google-oauth-token', re.compile(rb'ya29\.[A-Za-z0-9_-]{20,}')),
+    ('oauth-json-field', re.compile(rb'"(?:refresh_token|client_secret)"\s*:\s*"[^"\s]{12,}"')),
+)
 MAX_FILE = 256 * 1024 * 1024
 MAX_TOTAL = 50 * 1024**3
 
@@ -82,27 +87,41 @@ def read_regular(path):
         return data, before.st_mode & 0o777
 
 
+def sensitive_reason(data):
+    if data.startswith(b'SQLite format 3\0'):
+        return 'sqlite-database'
+    for reason, pattern in SECRET_PATTERNS:
+        if pattern.search(data):
+            return reason
+    return None
+
+
 def sensitive(data):
-    return bool(SECRET.search(data)) or data.startswith(b'SQLite format 3\0')
+    return sensitive_reason(data) is not None
 
 
-def history(root, destination):
-    if git(root, 'rev-parse', '--is-shallow-repository').strip() != b'false':
-        raise ValueError('Shallow Git history; use a complete repository or --without-history')
+def sensitive_path(name):
+    low = PurePosixPath(name).name.lower()
+    return ((low.startswith('.env') and not low.endswith(('.example', '.template')))
+            or low in SECRET_NAMES or low.endswith(('.pem', '.key', '.p12', '.pfx')))
+
+
+def audit_history(root, limit=20):
+    """Read-only audit; report object identities and reasons, never matched values."""
+    if not 1 <= limit <= 100:
+        raise ValueError('Audit limit must be between 1 and 100')
     refs = git(root, 'show-ref', '--head')
-    # Audit every reachable historical pathname and blob, not only current files.
+    report = {'schema': 1, 'head': git(root, 'rev-parse', 'HEAD').decode().strip(),
+              'shallow': git(root, 'rev-parse', '--is-shallow-repository').strip() != b'false',
+              'scanned_objects': 0, 'complete': False, 'findings': []}
     objects = git(root, 'rev-list', '--objects', '--all', 'HEAD').splitlines()
     with subprocess.Popen(['git', '-C', str(root), 'cat-file', '--batch'],
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
         try:
             for item in objects:
                 sha, _, raw_name = item.partition(b' ')
-                if raw_name and excluded(os.fsdecode(raw_name), tracked=True) == 'sensitive/database/temporary/archive-name':
-                    # Archives and temporary files in history are valid code history;
-                    # credential names, env and private key containers are not.
-                    low = PurePosixPath(os.fsdecode(raw_name)).name.lower()
-                    if (low.startswith('.env') and not low.endswith(('.example', '.template'))) or low in SECRET_NAMES or low.endswith(('.pem', '.key', '.p12', '.pfx')):
-                        raise ValueError('Sensitive filename in Git history; review history or use --without-history')
+                name = os.fsdecode(raw_name) if raw_name else None
+                reasons = ['sensitive-filename'] if name and sensitive_path(name) else []
                 proc.stdin.write(sha + b'\n')
                 proc.stdin.flush()
                 header = proc.stdout.readline().split()
@@ -110,15 +129,51 @@ def history(root, destination):
                     raise ValueError('Cannot audit Git object')
                 size = int(header[2])
                 if size > MAX_FILE:
-                    raise ValueError('Git object too large for audit')
-                data = proc.stdout.read(size)
-                if len(data) != size or proc.stdout.read(1) != b'\n':
+                    reasons.append('object-size-limit')
+                    remaining = size
+                    while remaining:
+                        chunk = proc.stdout.read(min(remaining, 1024 * 1024))
+                        if not chunk:
+                            raise ValueError('Incomplete Git object')
+                        remaining -= len(chunk)
+                else:
+                    data = proc.stdout.read(size)
+                    if len(data) != size:
+                        raise ValueError('Incomplete Git object')
+                    reason = sensitive_reason(data)
+                    if reason:
+                        reasons.append(reason)
+                if proc.stdout.read(1) != b'\n':
                     raise ValueError('Incomplete Git object')
-                if sensitive(data):
-                    raise ValueError('Potential secret/database in Git history; review or use --without-history')
+                report['scanned_objects'] += 1
+                if reasons:
+                    report['findings'].append({'object': sha.decode('ascii'),
+                                               'type': header[1].decode('ascii'),
+                                               'path': name, 'reasons': reasons})
+                    if len(report['findings']) >= limit:
+                        break
+            else:
+                report['complete'] = True
         finally:
             proc.stdin.close()
             proc.terminate()
+    if refs != git(root, 'show-ref', '--head'):
+        raise ValueError('Git refs changed during audit')
+    return report
+
+
+def history(root, destination):
+    if git(root, 'rev-parse', '--is-shallow-repository').strip() != b'false':
+        raise ValueError('Shallow Git history; use a complete repository or --without-history')
+    refs = git(root, 'show-ref', '--head')
+    audit = audit_history(root, limit=1)
+    if audit['findings']:
+        finding = audit['findings'][0]
+        prefix = 'Sensitive filename' if 'sensitive-filename' in finding['reasons'] else 'Potential secret/database'
+        raise ValueError(prefix + ' in Git history; object=' + finding['object'] +
+                         '; run audit-history to inspect metadata without secret values')
+    if not audit['complete']:
+        raise ValueError('Incomplete history audit')
     git(root, 'bundle', 'create', str(destination), '--all', 'HEAD')
     git(root, 'bundle', 'verify', str(destination))
     if refs != git(root, 'show-ref', '--head'):
@@ -286,6 +341,9 @@ def main():
     r = commands.add_parser('restore')
     r.add_argument('archive', type=Path)
     r.add_argument('--to', type=Path, required=True)
+    a = commands.add_parser('audit-history', help='Read-only metadata-only Git history audit')
+    a.add_argument('--root', type=Path, default=ROOT)
+    a.add_argument('--limit', type=int, default=20)
     args = parser.parse_args()
     try:
         if args.command == 'create':
@@ -293,6 +351,11 @@ def main():
         elif args.command == 'verify':
             m = verify(args.archive)
             print('Integrity verified:', len(m['files']), 'files; history:', m['history'])
+        elif args.command == 'audit-history':
+            report = audit_history(args.root.resolve(), args.limit)
+            print(json.dumps(report, ensure_ascii=True, indent=2))
+            if report['findings'] or report['shallow'] or not report['complete']:
+                raise SystemExit(2)
         else:
             restore(args.archive, args.to)
             print('Restored into new directory:', args.to)

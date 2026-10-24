@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "purpose": "Synthetic Google Drive storage roundtrip test",
+  "contains_personal_data": false,
+  "encryption_enabled": false,
+  "backup_automation_enabled": false,
+  "content": "PUBLIC SYNTHETIC TEST ONLY"
+}

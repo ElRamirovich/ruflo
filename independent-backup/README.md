@@ -68,7 +68,7 @@ de outros formatos e credenciais em nomes sensíveis continuam sujeitos à audit
   Revise exclusões antes de chamar uma cópia de completa. Não publique o ZIP.
 - Bancos SQLite (incluindo arquivos sem extensão reconhecidos pelo cabeçalho),
   WAL/SHM, dependências, caches, temporários e arquivos de backup são excluídos.
-  Bancos ativos exigem um futuro fluxo próprio de snapshot consistente.
+  Bancos ativos usam o fluxo explícito de snapshot consistente abaixo.
 - Links simbólicos são registrados como excluídos; destinos nunca são copiados.
   Submódulos/arquivos especiais não suportados e erros de leitura bloqueiam a criação.
 - Arquivos ignorados pelo Git não entram automaticamente; o manifesto lista esses
@@ -95,6 +95,33 @@ de outros formatos e credenciais em nomes sensíveis continuam sujeitos à audit
   simultaneamente. A pasta de restauração deve permanecer privada durante a operação.
 - Backup no mesmo Codespace não protege contra exclusão/perda do ambiente.
   Agendamento, retenção automática e cópias externas não estão habilitados.
+
+## Snapshots explícitos de bancos SQLite
+
+Depois de avaliar quais bancos contêm estado único, selecione cada um pelo
+caminho relativo ao repositório. Exemplo para o banco de memória do projeto:
+
+```bash
+python3 independent-backup/sqlite-snapshot.py --output /workspaces/ruflo-backups --database .swarm/agentdb-memory.db
+```
+
+Repita `--database` para incluir outros bancos avaliados na mesma cópia. O comando
+abre a origem em modo SQL somente leitura e usa a API online de backup do SQLite
+para incluir páginas WAL confirmadas sem incluir transações não commitadas.
+Não copia WAL/SHM separadamente. O SQLite pode coordenar leitores pelos arquivos
+auxiliares de memória compartilhada; não altera registros SQL da origem.
+
+Cada banco é consistente individualmente; não há transação conjunta entre bancos.
+A cópia é bloqueada se houver erro, tempo excedido, banco substituído, padrão de
+credencial detectado ou falha em `PRAGMA integrity_check`. A detecção de segredos
+continua heurística. Bancos cifrados ou que exigem extensões podem não ser suportados.
+Dependências, links e backups antigos não são elegíveis para esse fluxo.
+
+O ZIP `sqlite-snapshot-ID.zip` é privado, contém manifesto SHA-256 e só recebe
+nome final depois da verificação de todos os membros. Nenhum backup anterior é
+excluído. Pode ser verificado e restaurado pelo mesmo `backup.py`, sempre em
+diretório novo; os bancos recuperados mantêm seus caminhos relativos. O histórico
+Git não faz parte desse ZIP, e ele não substitui a cópia dos arquivos do projeto.
 
 ## Testes isolados
 

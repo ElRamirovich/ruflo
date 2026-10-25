@@ -36,10 +36,10 @@ tornar o backup irrecuperável. generate não garante persistência do filesyste
 
 ## Evidência em 25/10/2026
 
-41 testes passaram. Dois novos testes verificam geração temporária, reabertura,
+42 testes passaram. Três novos testes verificam geração temporária, reabertura,
 check por subprocesso sem segredos no stdout/stderr, uso das chaves em ida/volta
 de backup, preservação ao tentar gerar novamente e rejeição de permissões abertas,
-symlink e chave ausente. Todos os segredos são descartáveis e sintéticos.
+symlink, chave ausente e codificações equivalentes da mesma chave. Todos os segredos são descartáveis e sintéticos.
 Nenhuma chave de produção foi criada ou entregue. Nenhum serviço pago ativado.
 
 ## Limite antes de habilitar dados privados

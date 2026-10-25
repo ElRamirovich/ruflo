@@ -1,0 +1,46 @@
+{
+  "model_sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+  "results": [
+    {
+      "case": "arithmetic",
+      "passed": true,
+      "answer": "42",
+      "seconds": 1.962
+    },
+    {
+      "case": "json",
+      "passed": false,
+      "error_type": "JSONDecodeError",
+      "answer": "```json\n{\n  \"ok\": true\n}\n```",
+      "seconds": 6.164
+    },
+    {
+      "case": "python",
+      "passed": false,
+      "error_type": "SyntaxError",
+      "answer": "```python\ndef add(a, b):\n    return a + b\n```",
+      "seconds": 6.438
+    },
+    {
+      "case": "instruction",
+      "passed": true,
+      "answer": "pronto",
+      "seconds": 1.846
+    },
+    {
+      "case": "existing_client",
+      "passed": true,
+      "answer": "42",
+      "seconds": 1.559
+    }
+  ],
+  "server_stopped": true,
+  "model": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+  "revision": "91cad51170dc346986eccefdc2dd33a9da36ead9",
+  "quantization": "Q4_K_M",
+  "server_build": "b11871",
+  "evaluator_sha256": "0134b6c9ca2476b7a3b47c2edc5bbc568ce813112da1fda39a8a39b9c9833b8d",
+  "test_scope": "five synthetic cases; no generated code executed",
+  "approved_for_autonomous_actions": false,
+  "paid_services_activated": false
+}

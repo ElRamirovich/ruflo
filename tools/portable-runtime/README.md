@@ -50,17 +50,15 @@ de chamar, revisar os modelos, as rotas e a cobrança do servidor. Tokens
 do cliente não limitam o que o servidor pode fazer. Este cliente não fornece
 criptografia ponta a ponta contra o administrador da máquina, nem garante
 ausência de custos ou de processamento externo. Não usar dados privados no
-ensaio inicial. Nenhuma chamada real foi realizada para validar esta versão.
+ensaio inicial. Uma inferência real com prompt sintético foi executada; veja LIVE-INFERENCE.md. O modelo pequeno falhou na avaliação de qualidade e não foi promovido a agente.
 
 ## Evidência e limites
 
-Oito testes locais com transporte simulado verificam endpoint, modo offline,
-confirmação antes da leitura do prompt, formato da requisição, limites,
-ausência de retry, fechamento de conexão, injeção em headers e erros sem
-conteúdo sensível. Eles não comprovam desempenho, inferência real, cobrança,
-confinamento, portabilidade entre sistemas ou independência completa.
+Quatorze testes verificam o cliente, integração HTTP real com servidor sintético e
+rejeição/encerramento do ensaio de inferência. O smoke de inferência é separado
+e não é iniciado pela suíte de testes.
 
-Próximo marco: escolher um servidor que execute um modelo local de licença
-adequada, medir uma chamada fictícia autorizada e integrar sua resposta ao
-executor existente sem perder ferramentas, memória e coordenação. Não
-publicar, migrar dados ou habilitar serviço permanente apenas com estes testes.
+Veja [LIVE-INFERENCE.md](LIVE-INFERENCE.md) para as versões, hashes, comando,
+resultado real e limitações. O cliente funciona sem Ruflo e FreeLLMAPI; a
+coordenação, memória e ferramentas do agente continuam na implementação existente.
+Não há hospedagem permanente, migração concluída ou independência integral.

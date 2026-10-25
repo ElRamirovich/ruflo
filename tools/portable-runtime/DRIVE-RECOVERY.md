@@ -2,9 +2,12 @@
 
 Concluído com dados e chaves descartáveis. Não é cópia do projeto real nem
 aprovação para dados privados. 45 testes passaram no conjunto Linux após
-introdução do pacote de recuperação. No Windows, 26 testes anteriores e
-permissões/DPAPI foram confirmados por saídas enviadas pelo usuário; o novo
-pacote 7z ainda não foi testado nesse Windows.
+introdução do pacote de recuperação. No Windows, 27 testes distintos e permissões/DPAPI foram confirmados por
+saídas enviadas pelo usuário, incluindo o pacote 7z (1 teste em 1,127 s).
+Um teste adicional Linux integrou pacote de senha e backup em processo novo:
+recuperação correta, senha errada e truncamento de cada arquivo. Todos passaram.
+Esse teste integrado ainda precisa de execução no Windows; não testa DPAPI
+nem recuperação em outro computador.
 
 ## Evidência do ciclo externo
 
@@ -53,7 +56,7 @@ Não há gerador/CLI de chaves reais, migração, automação de upload ou servi
 permanente ativado. Não houve contratação de plano/API nem serviço pago ativado.
 A cota e o plano do Drive não foram auditados. Nenhum arquivo privado foi enviado.
 
-Antes de uso real, validar o pacote no Windows, implementar entrada local de
+Antes de uso real, validar o fluxo integrado no Windows, implementar entrada local de
 senha sem eco, guarda local protegida e recuperação em ambiente independente.
 Não depender só de DPAPI para recuperação portátil. Não guardar a senha de
 recuperação no mesmo Drive. Usar somente uma conta deixa disponibilidade sujeita

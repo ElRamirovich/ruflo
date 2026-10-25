@@ -11,10 +11,19 @@ TOKEN_LIMIT = 24 * 1024 * 1024
 
 
 def bounded_read(path, limit):
-    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    before = os.lstat(path)
+    reparse = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)
+    if (not stat.S_ISREG(before.st_mode) or before.st_size > limit
+            or getattr(before, 'st_file_attributes', 0) & reparse):
+        raise ValueError('input rejected')
+    flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0)
+    flags |= getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_NOFOLLOW', 0)
+    fd = os.open(path, flags)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+        if (not stat.S_ISREG(info.st_mode) or info.st_size > limit
+                or (info.st_dev, info.st_ino) != (before.st_dev, before.st_ino)
+                or not info.st_ino):
             raise ValueError('input rejected')
         data = stream.read(limit + 1)
         if len(data) > limit:
@@ -23,7 +32,7 @@ def bounded_read(path, limit):
 
 
 def private_write(path, data):
-    fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, 'O_BINARY', 0), 0o600)
     with os.fdopen(fd, 'wb') as stream:
         stream.write(data)
         stream.flush()

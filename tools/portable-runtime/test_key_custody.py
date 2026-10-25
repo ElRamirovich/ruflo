@@ -11,6 +11,16 @@ from sealed_backup import seal, unseal
 
 
 class KeyCustodyTests(unittest.TestCase):
+    def test_equivalent_key_encoding_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)/'keys';generate(directory)
+            key=(directory/'memory.key').read_bytes()
+            alphabet=b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+            alternative=key[:-2]+bytes([alphabet[alphabet.index(key[-2])+1]])+key[-1:]
+            Fernet(alternative)
+            (directory/'backup.key').write_bytes(alternative)
+            with self.assertRaises(ValueError):load(directory)
+
     def test_files_reopen_and_recovery_without_secret_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);directory=root/'keys';generate(directory)

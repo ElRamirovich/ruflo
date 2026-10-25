@@ -1,12 +1,28 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 from cryptography.fernet import Fernet, InvalidToken
 from encrypted_memory import EncryptedMemory
-from sealed_backup import seal, unseal
+from sealed_backup import seal, unseal, bounded_read
 
 
 class SealedBackupTests(unittest.TestCase):
+    def test_bounded_read_rejects_directory_and_oversize(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);file=root/'data';file.write_bytes(b'12345')
+            with self.assertRaises(ValueError):bounded_read(root,10)
+            with self.assertRaises(ValueError):bounded_read(file,4)
+            self.assertEqual(bounded_read(file,5),b'12345')
+
+    def test_reparse_attribute_rejected_before_open(self):
+        import stat
+        info=SimpleNamespace(st_mode=stat.S_IFREG,st_size=1,st_file_attributes=0x400)
+        with patch('sealed_backup.os.lstat',return_value=info), patch('sealed_backup.os.open') as opening:
+            with self.assertRaises(ValueError):bounded_read('synthetic',10)
+            opening.assert_not_called()
+
     def test_roundtrip_hides_schema_and_ids(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);source=root/'source.db';archive=root/'backup';restored=root/'restored.db'

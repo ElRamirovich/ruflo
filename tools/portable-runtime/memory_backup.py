@@ -51,7 +51,9 @@ def snapshot(source, destination, key):
                 check.get(task_id)
         finally:
             check.close()
-        with staged.open('rb') as stream:
+        # Windows _commit (used by fsync) needs a writable handle.
+        # r+b preserves existing snapshot contents; it does not truncate.
+        with staged.open('r+b') as stream:
             os.fsync(stream.fileno())
         os.link(staged, destination)
     return {'verified': True, 'receipts': len(ids), 'key_saved': False}

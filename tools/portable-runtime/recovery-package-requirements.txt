@@ -1,0 +1,3 @@
+# Optional package only; core runtime remains independent of these SDKs.
+py7zr==1.1.4
+cryptography==50.0.2

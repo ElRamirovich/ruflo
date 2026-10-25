@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from cryptography.fernet import Fernet
 from key_custody import generate, load
 from encrypted_memory import EncryptedMemory
 from sealed_backup import seal, unseal

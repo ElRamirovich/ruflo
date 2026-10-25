@@ -36,6 +36,7 @@ class RecoveryProcessTests(unittest.TestCase):
             try:m.append('synthetic',17,25,42)
             finally:m.close()
             seal(source,archive,memory_key,backup_key)
+            original_source=source.read_bytes()
             # Parent source remains untouched; the child is only given archive path.
             keys={'memory':memory_key.decode(),'backup':backup_key.decode()}
             cases=[(keys,True),({'backup':keys['backup']},False),
@@ -59,8 +60,10 @@ class RecoveryProcessTests(unittest.TestCase):
                 input=json.dumps(keys).encode(),capture_output=True,timeout=15,
                 cwd=Path(__file__).parent,env={})
             self.assertEqual(r.returncode,2)
+            self.assertEqual(json.loads(r.stdout),{'recovered':False})
+            for secret in (memory_key,backup_key):self.assertNotIn(secret,r.stdout+r.stderr)
             self.assertFalse(target.exists())
-            self.assertTrue(source.exists())
+            self.assertEqual(source.read_bytes(),original_source)
 
 
 if __name__=='__main__':unittest.main()

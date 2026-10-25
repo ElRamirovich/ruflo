@@ -1,5 +1,6 @@
 """Experimental POSIX key files. Trusted parent required; no secret output."""
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -31,7 +32,8 @@ def load(directory):
                 if len(key) != 44:raise ValueError('invalid key size')
                 Fernet(key)
                 keys.append(key)
-        if keys[0] == keys[1]:raise ValueError('keys must differ')
+        if base64.urlsafe_b64decode(keys[0]) == base64.urlsafe_b64decode(keys[1]):
+            raise ValueError('keys must differ')
         return tuple(keys)
     finally:
         os.close(fd)

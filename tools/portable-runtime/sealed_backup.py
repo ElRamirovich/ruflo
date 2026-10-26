@@ -5,7 +5,7 @@ from pathlib import Path
 import stat
 import tempfile
 from cryptography.fernet import Fernet
-from memory_backup import snapshot, MAX_BYTES
+from memory_backup import snapshot, MAX_BYTES, temporary_directory
 
 TOKEN_LIMIT = 24 * 1024 * 1024
 
@@ -53,7 +53,7 @@ def seal(source, destination, memory_key, backup_key):
     destination = Path(destination).absolute()
     if os.path.lexists(destination):
         raise FileExistsError('destination exists')
-    with tempfile.TemporaryDirectory(prefix='sealed-memory-', dir=destination.parent) as tmp:
+    with temporary_directory(destination.parent, 'sealed-memory-') as tmp:
         db, archive = Path(tmp)/'snapshot.db', Path(tmp)/'archive.fernet'
         receipt = snapshot(source, db, memory_key)
         data = bounded_read(db, MAX_BYTES)
@@ -73,7 +73,7 @@ def unseal(source, destination, memory_key, backup_key):
     data = cipher.decrypt(bounded_read(source, TOKEN_LIMIT))
     if len(data) > MAX_BYTES:
         raise ValueError('database limit')
-    with tempfile.TemporaryDirectory(prefix='unsealed-memory-', dir=destination.parent) as tmp:
+    with temporary_directory(destination.parent, 'unsealed-memory-') as tmp:
         db = Path(tmp)/'snapshot.db'
         private_write(db, data)
         return snapshot(db, destination, memory_key)

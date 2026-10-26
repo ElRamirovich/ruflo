@@ -160,6 +160,7 @@ def initialize(directory, password):
     memory.close()
     seal(directory/'memory.db', directory/'initial.fernet', keys['memory'].encode(), keys['backup'].encode())
     with temporary_directory(directory, 'verify-') as tmp:
+        check_directory(tmp)
         unseal(directory/'initial.fernet', Path(tmp)/'restored.db', keys['memory'].encode(), keys['backup'].encode())
     private_write(directory/'READY', b'portable-vault-v1\n')
     return directory
@@ -169,6 +170,7 @@ def check_vault(directory):
     keys = load_keys(directory)
     directory = Path(directory).absolute()
     with temporary_directory(directory, 'verify-') as tmp:
+        check_directory(tmp)
         return snapshot(directory/'memory.db',Path(tmp)/'verified.db',keys['memory'].encode())
 
 

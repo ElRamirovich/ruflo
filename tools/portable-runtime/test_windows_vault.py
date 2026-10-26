@@ -92,6 +92,10 @@ class VaultLogicTests(unittest.TestCase):
                 run.return_value = subprocess.CompletedProcess([],2,b'REJECTED',b'')
                 with self.assertRaises(ValueError):vault.check_directory(tmp)
 
+                # Success text must not hide actual errors on stderr.
+                run.return_value = subprocess.CompletedProcess([],0,b'PRIVATE',b'synthetic error')
+                with self.assertRaises(ValueError):vault.check_directory(tmp)
+
     def test_workflow_with_simulated_os_protector(self):
         # This tests composition only, NOT DPAPI or Windows ACL enforcement.
         protector = Fernet(Fernet.generate_key())

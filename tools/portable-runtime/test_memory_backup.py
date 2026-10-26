@@ -4,12 +4,34 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+import memory_backup
 from cryptography.fernet import Fernet, InvalidToken
 from encrypted_memory import EncryptedMemory
 from memory_backup import snapshot
 
 
 class MemoryBackupTests(unittest.TestCase):
+    def test_windows_temporary_child_cleanup_and_collision(self):
+        # Exercises the branch, not native ACL inheritance (covered on Windows).
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(memory_backup.sys,'platform','win32'):
+                with self.assertRaisesRegex(ValueError,'synthetic failure'):
+                    with memory_backup.temporary_directory(root,'test-') as owned:
+                        (owned/'fixture').write_text('synthetic')
+                        raise ValueError('synthetic failure')
+                self.assertFalse(owned.exists())
+                existing = root/'test-fixed'
+                existing.mkdir()
+                (existing/'keep').write_text('preserve')
+                with patch.object(memory_backup.uuid,'uuid4',return_value=SimpleNamespace(hex='fixed')):
+                    with self.assertRaises(FileExistsError):
+                        with memory_backup.temporary_directory(root,'test-'):
+                            self.fail('collision accepted')
+                self.assertEqual((existing/'keep').read_text(),'preserve')
+
     def test_backup_restore_and_recovery_in_separate_process(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);source=root/'source.db';backup=root/'backup.db';restored=root/'restored.db'

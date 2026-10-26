@@ -4,10 +4,34 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import time
+import sys
+import uuid
+import shutil
+from contextlib import contextmanager
 from encrypted_memory import EncryptedMemory
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_RECEIPTS = 1000
+
+
+@contextmanager
+def temporary_directory(parent, prefix):
+    """Own temporary child of a trusted private parent; preserve Windows ACL inheritance."""
+    if sys.platform != 'win32':
+        with tempfile.TemporaryDirectory(prefix=prefix, dir=parent) as directory:
+            yield Path(directory)
+        return
+    if not prefix or any(c not in 'abcdefghijklmnopqrstuvwxyz-' for c in prefix):
+        raise ValueError('invalid temporary prefix')
+    directory = Path(parent).absolute() / (prefix + uuid.uuid4().hex)
+    # Python 3.13+ treats 0700 specially on Windows, granting Administrators.
+    # Other modes are ignored by Windows, retaining the parent's inherited ACL.
+    # This does NOT grant POSIX-style world access on Windows.
+    directory.mkdir(mode=0o777, exist_ok=False)
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory)
 
 
 def snapshot(source, destination, key):
@@ -24,7 +48,7 @@ def snapshot(source, destination, key):
             raise ValueError('snapshot limit')
 
     # Temp and final path share a filesystem; hard link publishes without overwrite.
-    with tempfile.TemporaryDirectory(prefix='memory-snapshot-', dir=destination.parent) as tmp:
+    with temporary_directory(destination.parent, 'memory-snapshot-') as tmp:
         staged = Path(tmp) / 'snapshot.db'
         fd = os.open(staged, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         os.close(fd)

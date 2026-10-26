@@ -27,6 +27,7 @@ import windows_dpapi
 
 ACL_SCRIPT = r'''
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 try {
     $path = $env:MEU_AGENTE_ACL_PATH
     $item = Get-Item -LiteralPath $path -Force

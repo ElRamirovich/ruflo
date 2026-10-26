@@ -143,7 +143,8 @@ class WindowsVaultIntegrationTests(unittest.TestCase):
         custody = os.environ.get('TEST_CUSTODY')
         if not custody:self.fail('Set TEST_CUSTODY to the existing private test directory.')
         parent = vault.check_directory(custody)
-        with tempfile.TemporaryDirectory(prefix='synthetic-vault-',dir=parent) as tmp:
+        with vault.temporary_directory(parent,'synthetic-vault-') as tmp:
+            vault.check_directory(tmp)
             exercise(Path(tmp),self)
 
 

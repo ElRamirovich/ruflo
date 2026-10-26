@@ -19,7 +19,7 @@ import warnings
 
 from cryptography.fernet import Fernet
 from encrypted_memory import EncryptedMemory
-from memory_backup import snapshot
+from memory_backup import snapshot, temporary_directory
 from recovery_package import pack, unpack, validate
 from sealed_backup import bounded_read, private_write, seal, unseal
 import windows_dpapi
@@ -159,7 +159,7 @@ def initialize(directory, password):
     memory = EncryptedMemory(directory/'memory.db', keys['memory'].encode(), create=True)
     memory.close()
     seal(directory/'memory.db', directory/'initial.fernet', keys['memory'].encode(), keys['backup'].encode())
-    with tempfile.TemporaryDirectory(prefix='verify-', dir=directory) as tmp:
+    with temporary_directory(directory, 'verify-') as tmp:
         unseal(directory/'initial.fernet', Path(tmp)/'restored.db', keys['memory'].encode(), keys['backup'].encode())
     private_write(directory/'READY', b'portable-vault-v1\n')
     return directory
@@ -168,7 +168,7 @@ def initialize(directory, password):
 def check_vault(directory):
     keys = load_keys(directory)
     directory = Path(directory).absolute()
-    with tempfile.TemporaryDirectory(prefix='verify-', dir=directory) as tmp:
+    with temporary_directory(directory, 'verify-') as tmp:
         return snapshot(directory/'memory.db',Path(tmp)/'verified.db',keys['memory'].encode())
 
 
